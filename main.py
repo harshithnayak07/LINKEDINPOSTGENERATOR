@@ -1,13 +1,14 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import requests
-import json
 import os
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
-app = FastAPI()
+app = FastAPI(title="LinkedIn Post Generator API")
 
 # Enable CORS
 app.add_middleware(
@@ -18,12 +19,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request model (this creates JSON editor in Swagger)
+class PostRequest(BaseModel):
+    role: str
+    tone: str
+    purpose: str
+    topic: str
+
+
 # Health check route
 @app.get("/")
 def home():
-    return {"status": "ok", "message": "LinkedIn Post Generator API"}
+    return {
+        "status": "ok",
+        "message": "LinkedIn Post Generator API is running"
+    }
 
-# Load custom script style
+
+# Load custom writing style
 def load_script_style():
     try:
         with open("scripts.txt", "r", encoding="utf-8") as file:
@@ -31,16 +44,15 @@ def load_script_style():
     except:
         return "Write a professional LinkedIn post."
 
+
 # Generate LinkedIn post
 @app.post("/generatepost")
-async def generate_post(request: Request):
+async def generate_post(data: PostRequest):
 
-    data = await request.json()
-
-    role = data.get("role", "Student")
-    tone = data.get("tone", "Professional")
-    purpose = data.get("purpose", "Career update")
-    topic = data.get("topic", "General")
+    role = data.role
+    tone = data.tone
+    purpose = data.purpose
+    topic = data.topic
 
     script_style = load_script_style()
 
@@ -56,14 +68,20 @@ Tone: {tone}
 Purpose: {purpose}
 Topic: {topic}
 
-Match the tone and format.
+Make the post engaging, authentic, and suitable for LinkedIn.
 """
 
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "system", "content": "You are a professional LinkedIn post writer."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are a professional LinkedIn post writer."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
         ]
     }
 
@@ -81,6 +99,9 @@ Match the tone and format.
         )
 
         result = response.json()
+
+        if "choices" not in result:
+            return {"error": result}
 
         generated_post = result["choices"][0]["message"]["content"]
 
